@@ -1,22 +1,15 @@
-from fastapi import FastAPI, Response, status, HTTPException
-from pydantic import BaseModel
 from typing import Optional
-import psycopg2
-from functools import lru_cache
+from pydantic import BaseModel
 from psycopg2.extras import RealDictCursor
-import time
+from fastapi import FastAPI, Response, status, HTTPException, Depends
+from sqlalchemy.orm import Session
 
-from .config import Settings
+from . import models
+from .database import engine, get_db
 
 app = FastAPI()
 
-
-@lru_cache
-def get_settings():
-    return Settings()
-
-
-settings = get_settings()
+models.Base.metadata.create_all(bind=engine)
 
 
 # Schema
@@ -32,41 +25,22 @@ class UpdatePostSchema(BaseModel):
     published: Optional[bool]
 
 
-while True:
-    try:
-        conn = psycopg2.connect(
-            host=settings.db_hostname,
-            database=settings.db_name,
-            user=settings.db_username,
-            password=settings.db_password,
-            cursor_factory=RealDictCursor,
-        )
-        cursor = conn.cursor()
-        print("Database connection was successfull!")
-        break
-    except Exception as error:
-        print("Database connection failed")
-        print(error)
-        time.sleep(2)
-
-
 @app.get("/")
 def root():
     return {"message": "welcome to my api"}
 
 
 @app.get("/posts")
-def get_posts():
-    cursor.execute("""SELECT * FROM posts""")
-    posts = cursor.fetchall()
+def get_posts(db: Session = Depends(get_db)):
+    posts = db.query(models.Post).all()
     return {"data": posts}
 
 
 # Path parameter
 @app.get("/posts/{id}")
-def get_post(id: int, response: Response):
-    cursor.execute("""SELECT * FROM posts WHERE id = %s""", (id,))
-    post = cursor.fetchone()
+def get_post(id: int, db: Session = Depends(get_db)):
+    post = db.query(models.Post).filter(models.Post.id == id).first()
+
     if not post:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"No post with id: {id}"
@@ -74,41 +48,46 @@ def get_post(id: int, response: Response):
     return {"data": post}
 
 
-# For default status code put it in decorator
 @app.post("/posts", status_code=status.HTTP_201_CREATED)
-def create_posts(post: PostSchema):
-    # For handling SQL injections
-    cursor.execute(
-        """INSERT INTO posts (title, content, published) VALUES (%s, %s, %s) RETURNING *""",
-        (post.title, post.content, post.published),
-    )
-    new_post = cursor.fetchone()
-    conn.commit()
+def create_posts(post: PostSchema, db: Session = Depends(get_db)):
+    new_post = models.Post(**post.dict())
+
+    db.add(new_post)
+    db.commit()
+    db.refresh(new_post)
+
     return {"data": new_post}
 
 
 @app.put("/posts/{id}", status_code=status.HTTP_202_ACCEPTED)
-def update_post(id: int, post: PostSchema):
-    cursor.execute(
-        """UPDATE posts SET title = %s, content = %s, published = %s WHERE id = %s RETURNING *""",
-        (post.title, post.content, post.published, id),
-    )
-    updated_post = cursor.fetchone()
-    conn.commit()
-    if not updated_post:
+def update_post(id: int, post: UpdatePostSchema, db: Session = Depends(get_db)):
+    post_query = db.query(models.Post).filter(models.Post.id == id)
+    db_post = post_query.first()
+
+    if not db_post:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"No post with id: {id}"
         )
-    return {"data": updated_post}
+
+    post_dict = post.dict(exclude_unset=True)
+    for key, value in post_dict.items():
+        setattr(db_post, key, value)
+
+    db.add(db_post)
+    db.commit()
+    db.refresh(db_post)
+
+    return {"data": db_post}
 
 
 @app.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_post(id: int):
-    cursor.execute("""DELETE FROM posts WHERE id = %s RETURNING *""", (id,))
-    post = cursor.fetchone()
-    conn.commit()
-    if not post:
+def delete_post(id: int, db: Session = Depends(get_db)):
+    post_query = db.query(models.Post).filter(models.Post.id == id)
+
+    if not post_query.first():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"No post with id: {id}"
         )
+    post_query.delete()
+    db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
