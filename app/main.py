@@ -1,8 +1,22 @@
 from fastapi import FastAPI, Response, status, HTTPException
 from pydantic import BaseModel
 from typing import Optional
+import psycopg2
+from functools import lru_cache
+from psycopg2.extras import RealDictCursor
+import time
+
+from .config import Settings
 
 app = FastAPI()
+
+
+@lru_cache
+def get_settings():
+    return Settings()
+
+
+settings = get_settings()
 
 
 # Schema
@@ -10,33 +24,30 @@ class PostSchema(BaseModel):
     title: str
     content: str
     published: bool = True
-    rating: Optional[int] = None
 
 
 class UpdatePostSchema(BaseModel):
     title: Optional[str]
     content: Optional[str]
     published: Optional[bool]
-    rating: Optional[int] = None
 
 
-id = 3
-my_posts = [
-    {"id": 1, "title": "ex title", "content": "ex content"},
-    {"id": 2, "title": "ex title2", "content": "ex content2"},
-]
-
-
-def find_index_post(id):
-    for i, p in enumerate(my_posts):
-        if p["id"] == id:
-            return i
-
-
-def update(post, new_post):
-    for k in post.keys():
-        if new_post[k] is not None:
-            post[k] = new_post[k]
+while True:
+    try:
+        conn = psycopg2.connect(
+            host=settings.db_hostname,
+            database=settings.db_name,
+            user=settings.db_username,
+            password=settings.db_password,
+            cursor_factory=RealDictCursor,
+        )
+        cursor = conn.cursor()
+        print("Database connection was successfull!")
+        break
+    except Exception as error:
+        print("Database connection failed")
+        print(error)
+        time.sleep(2)
 
 
 @app.get("/")
@@ -46,53 +57,58 @@ def root():
 
 @app.get("/posts")
 def get_posts():
-    return {"data": my_posts}
+    cursor.execute("""SELECT * FROM posts""")
+    posts = cursor.fetchall()
+    return {"data": posts}
 
 
 # Path parameter
 @app.get("/posts/{id}")
 def get_post(id: int, response: Response):
-    filtered = list(filter((lambda x: x["id"] == id), my_posts))
-
-    if len(filtered) == 0:
+    cursor.execute("""SELECT * FROM posts WHERE id = %s""", (id,))
+    post = cursor.fetchone()
+    if not post:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"No post with id: {id}"
         )
-    else:
-        return {"data": filtered[0]}
+    return {"data": post}
 
 
 # For default status code put it in decorator
 @app.post("/posts", status_code=status.HTTP_201_CREATED)
 def create_posts(post: PostSchema):
-    global id
-    post_dict = post.dict()
-    post_dict["id"] = id
-    my_posts.append(post_dict)
-    id += 1
-    return {"data": post_dict}
+    # For handling SQL injections
+    cursor.execute(
+        """INSERT INTO posts (title, content, published) VALUES (%s, %s, %s) RETURNING *""",
+        (post.title, post.content, post.published),
+    )
+    new_post = cursor.fetchone()
+    conn.commit()
+    return {"data": new_post}
 
 
 @app.put("/posts/{id}", status_code=status.HTTP_202_ACCEPTED)
-def update_post(id: int, post: UpdatePostSchema):
-    index = find_index_post(id)
-    if index is None:
+def update_post(id: int, post: PostSchema):
+    cursor.execute(
+        """UPDATE posts SET title = %s, content = %s, published = %s WHERE id = %s RETURNING *""",
+        (post.title, post.content, post.published, id),
+    )
+    updated_post = cursor.fetchone()
+    conn.commit()
+    if not updated_post:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"No post with id: {id}"
         )
-    post_dict = post.dict()
-    post_dict["id"] = id
-    old_post = my_posts[index]
-    update(old_post, post_dict)
-    return {"data": old_post}
+    return {"data": updated_post}
 
 
 @app.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_post(id: int):
-    index = find_index_post(id)
-    if index is None:
+    cursor.execute("""DELETE FROM posts WHERE id = %s RETURNING *""", (id,))
+    post = cursor.fetchone()
+    conn.commit()
+    if not post:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"No post with id: {id}"
         )
-    my_posts.pop(index)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
