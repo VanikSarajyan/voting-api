@@ -1,6 +1,6 @@
 from typing import Optional
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 
 
 class PostBaseSchema(BaseModel):
@@ -21,6 +21,20 @@ class PostUpdateSchema(PostBaseSchema):
 
 class PostResponseSchema(PostBaseSchema):
     id: int
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
+
+
+class UserCreateSchema(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class UserResponseSchema(BaseModel):
+    id: int
+    email: EmailStr
     created_at: datetime
 
     class Config:
