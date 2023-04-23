@@ -1,21 +1,28 @@
 from sqlalchemy.orm import Session
 from fastapi import Response, status, HTTPException, Depends, APIRouter
 
+from ..models import Post, User
 from ..database import get_db
-from ..models import Post
+from ..oauth2 import get_current_user
 from ..schemas import PostCreateSchema, PostUpdateSchema, PostResponseSchema
 
 posts_router = APIRouter(prefix="/posts", tags=["Posts"])
 
 
 @posts_router.get("/", response_model=list[PostResponseSchema])
-def get_posts(db: Session = Depends(get_db)):
+def get_posts(
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
     posts = db.query(Post).all()
     return posts
 
 
 @posts_router.get("/{id}", response_model=PostResponseSchema)
-def get_post(id: int, db: Session = Depends(get_db)):
+def get_post(
+    id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     post = db.query(Post).filter(Post.id == id).first()
 
     if not post:
@@ -28,7 +35,12 @@ def get_post(id: int, db: Session = Depends(get_db)):
 @posts_router.post(
     "/", status_code=status.HTTP_201_CREATED, response_model=PostResponseSchema
 )
-def create_post(post: PostCreateSchema, db: Session = Depends(get_db)):
+def create_post(
+    post: PostCreateSchema,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    print(current_user)
     new_post = Post(**post.dict())
 
     db.add(new_post)
@@ -43,7 +55,12 @@ def create_post(post: PostCreateSchema, db: Session = Depends(get_db)):
     status_code=status.HTTP_202_ACCEPTED,
     response_model=PostResponseSchema,
 )
-def update_post(id: int, post: PostUpdateSchema, db: Session = Depends(get_db)):
+def update_post(
+    id: int,
+    post: PostUpdateSchema,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     post_query = db.query(Post).filter(Post.id == id)
     db_post = post_query.first()
 
@@ -64,7 +81,11 @@ def update_post(id: int, post: PostUpdateSchema, db: Session = Depends(get_db)):
 
 
 @posts_router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_post(id: int, db: Session = Depends(get_db)):
+def delete_post(
+    id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     post_query = db.query(Post).filter(Post.id == id)
 
     if not post_query.first():

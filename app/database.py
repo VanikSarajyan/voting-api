@@ -1,14 +1,7 @@
-from functools import lru_cache
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from .config import Settings
-
-
-@lru_cache
-def get_settings():
-    return Settings()
-
+from .config import get_settings
 
 s = get_settings()
 
