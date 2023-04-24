@@ -1,5 +1,6 @@
 from typing import Optional
 from datetime import datetime
+from pydantic.types import conint
 from pydantic import BaseModel, EmailStr
 
 
@@ -55,3 +56,8 @@ class TokenSchema(BaseModel):
 
 class TokenDataSchema(BaseModel):
     id: Optional[str] = None
+
+
+class VoteSchema(BaseModel):
+    post_id: int
+    dir: conint(le=1)  # TODO 0 | 1
