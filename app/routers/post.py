@@ -1,3 +1,4 @@
+from typing import Optional
 from sqlalchemy.orm import Session
 from fastapi import Response, status, HTTPException, Depends, APIRouter
 
@@ -11,9 +12,19 @@ posts_router = APIRouter(prefix="/posts", tags=["Posts"])
 
 @posts_router.get("/", response_model=list[PostResponseSchema])
 def get_posts(
-    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    limit: int = 10,
+    skip: int = 0,
+    search: Optional[str] = "",
 ):
-    posts = db.query(Post).all()
+    posts = (
+        db.query(Post)
+        .filter(Post.title.contains(search))
+        .limit(limit)
+        .offset(skip)
+        .all()
+    )
     return posts
 
 
@@ -41,7 +52,7 @@ def create_post(
     current_user: User = Depends(get_current_user),
 ):
     print(current_user)
-    new_post = Post(**post.dict())
+    new_post = Post(**post.dict(), user_id=current_user.id)
 
     db.add(new_post)
     db.commit()
@@ -69,6 +80,12 @@ def update_post(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"No post with id: {id}"
         )
 
+    if db_post.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to perform requested action.",
+        )
+
     post_dict = post.dict(exclude_unset=True)
     for key, value in post_dict.items():
         setattr(db_post, key, value)
@@ -91,6 +108,12 @@ def delete_post(
     if not post_query.first():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"No post with id: {id}"
+        )
+
+    if post_query.first().user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to perform requested action.",
         )
     post_query.delete()
     db.commit()

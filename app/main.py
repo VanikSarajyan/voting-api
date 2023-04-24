@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Response, status, HTTPException, Depends
+from fastapi import FastAPI
 
 from .models import Base
 from .database import engine

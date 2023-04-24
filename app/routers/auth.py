@@ -29,4 +29,4 @@ def login(
 
     token = create_access_token(data={"user_id": user.id})
 
-    return {"token": token, "token_type": "bearer"}
+    return {"access_token": token, "token_type": "bearer"}
