@@ -1,11 +1,17 @@
 from typing import Optional
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from fastapi import Response, status, HTTPException, Depends, APIRouter
 
-from ..models import Post, User
 from ..database import get_db
+from ..models import Post, User, Vote
 from ..oauth2 import get_current_user
-from ..schemas import PostCreateSchema, PostUpdateSchema, PostResponseSchema
+from ..schemas import (
+    PostCreateSchema,
+    PostUpdateSchema,
+    PostResponseSchema,
+    PostWithVotesSchema,
+)
 
 posts_router = APIRouter(prefix="/posts", tags=["Posts"])
 
@@ -25,6 +31,14 @@ def get_posts(
         .offset(skip)
         .all()
     )
+
+    posts_votes = (
+        db.query(Post, func.count(Vote.post_id).label("votes"))
+        .join(Vote, Vote.post_id == Post.id, isouter=True)
+        .group_by(Post.id)
+        .all()
+    )
+
     return posts
 
 
@@ -35,6 +49,14 @@ def get_post(
     current_user: User = Depends(get_current_user),
 ):
     post = db.query(Post).filter(Post.id == id).first()
+
+    post_votes = (
+        db.query(Post, func.count(Vote.post_id).label("votes"))
+        .join(Vote, Vote.post_id == Post.id, isouter=True)
+        .group_by(Post.id)
+        .filter(Post.id == id)
+        .first()
+    )
 
     if not post:
         raise HTTPException(

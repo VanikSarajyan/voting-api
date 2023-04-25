@@ -44,6 +44,14 @@ class PostResponseSchema(PostBaseSchema):
         orm_mode = True
 
 
+class PostWithVotesSchema(BaseModel):
+    Post: PostResponseSchema
+    votes: int
+
+    class Config:
+        orm_mode = True
+
+
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
