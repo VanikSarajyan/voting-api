@@ -6,7 +6,8 @@ from .routers import post, user, auth, vote
 
 app = FastAPI()
 
-Base.metadata.create_all(bind=engine)
+# #No longer needed because of Alembic
+# Base.metadata.create_all(bind=engine)
 
 app.include_router(post.posts_router)
 app.include_router(user.users_router)
