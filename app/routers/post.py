@@ -16,7 +16,7 @@ from ..schemas import (
 posts_router = APIRouter(prefix="/posts", tags=["Posts"])
 
 
-@posts_router.get("/", response_model=list[PostResponseSchema])
+@posts_router.get("/", response_model=list[PostWithVotesSchema])
 def get_posts(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -24,32 +24,25 @@ def get_posts(
     skip: int = 0,
     search: Optional[str] = "",
 ):
-    posts = (
-        db.query(Post)
+    posts_votes = (
+        db.query(Post, func.count(Vote.post_id).label("votes"))
+        .join(Vote, Vote.post_id == Post.id, isouter=True)
+        .group_by(Post.id)
         .filter(Post.title.contains(search))
         .limit(limit)
         .offset(skip)
         .all()
     )
 
-    posts_votes = (
-        db.query(Post, func.count(Vote.post_id).label("votes"))
-        .join(Vote, Vote.post_id == Post.id, isouter=True)
-        .group_by(Post.id)
-        .all()
-    )
-
-    return posts
+    return posts_votes
 
 
-@posts_router.get("/{id}", response_model=PostResponseSchema)
+@posts_router.get("/{id}", response_model=PostWithVotesSchema)
 def get_post(
     id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    post = db.query(Post).filter(Post.id == id).first()
-
     post_votes = (
         db.query(Post, func.count(Vote.post_id).label("votes"))
         .join(Vote, Vote.post_id == Post.id, isouter=True)
@@ -58,11 +51,11 @@ def get_post(
         .first()
     )
 
-    if not post:
+    if not post_votes:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"No post with id: {id}"
         )
-    return post
+    return post_votes
 
 
 @posts_router.post(

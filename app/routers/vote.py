@@ -26,7 +26,7 @@ def vote(
         Vote.post_id == vote.post_id, Vote.user_id == current_user.id
     )
     found_vote = vote_query.first()
-    if vote.dir == 1:
+    if vote.dir:
         if found_vote:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,

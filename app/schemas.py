@@ -68,4 +68,4 @@ class TokenDataSchema(BaseModel):
 
 class VoteSchema(BaseModel):
     post_id: int
-    dir: conint(le=1)  # TODO 0 | 1
+    dir: bool
