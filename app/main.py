@@ -20,6 +20,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.get("/")
+def root():
+    return {"welcome": "voting-api"}
+
+
 app.include_router(post.posts_router)
 app.include_router(user.users_router)
 app.include_router(auth.auth_router)
