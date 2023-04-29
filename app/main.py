@@ -1,14 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .models import Base
-from .database import engine
 from .routers import post, user, auth, vote
 
 app = FastAPI()
-
-# #No longer needed because of Alembic
-# Base.metadata.create_all(bind=engine)
 
 origins = ["*"]
 
