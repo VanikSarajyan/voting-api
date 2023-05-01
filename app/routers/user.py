@@ -31,9 +31,9 @@ def get_user(id: int, db: Session = Depends(get_db)):
 )
 def create_user(user: UserCreateSchema, db: Session = Depends(get_db)):
     user.password = hash(user.password)
-    user = db.query(User).filter(User.email == user.email).first()
+    db_user = db.query(User).filter(User.email == user.email).first()
 
-    if user:
+    if db_user:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"User with email {user.email} already exists.",

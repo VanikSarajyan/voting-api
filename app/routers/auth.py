@@ -19,7 +19,7 @@ def login(
 
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="No user with this email"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Invalid credentials"
         )
 
     if not verify(credentials.password, user.password):
