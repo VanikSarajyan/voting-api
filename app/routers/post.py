@@ -78,7 +78,7 @@ def create_post(
 
 @posts_router.put(
     "/{id}",
-    status_code=status.HTTP_202_ACCEPTED,
+    status_code=status.HTTP_200_OK,
     response_model=PostResponseSchema,
 )
 def update_post(
