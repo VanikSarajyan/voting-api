@@ -1,7 +1,7 @@
 # voting-api
 Voting API powered by FastAPI
 
-You can find and play with API at https://vaniksarajyan.site
+You can find and play with API at https://vaniksarajyan.site/docs 
 
 # To run locally
 First clone this repo by using following command
